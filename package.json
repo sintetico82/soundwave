@@ -5,6 +5,7 @@
   "main": "soundwave.js",
   "dependencies": {
     "apiai": "^4.0.3",
+    "end-of-stream": "^1.4.0",
     "node-record-lpcm16": "^0.3.0",
     "play-sound": "^1.1.1",
     "snowboy": "^1.2.0"
