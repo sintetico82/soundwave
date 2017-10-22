@@ -1,0 +1,18 @@
+{
+  "name": "soundwave",
+  "version": "0.1.0",
+  "description": "## Requirements * Node.js * Api.ai SDK",
+  "main": "soundwave.js",
+  "dependencies": {
+    "apiai": "^4.0.3",
+    "node-record-lpcm16": "^0.3.0",
+    "play-sound": "^1.1.1",
+    "snowboy": "^1.2.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "sintetico82",
+  "license": "ISC"
+}
