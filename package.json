@@ -4,10 +4,10 @@
   "description": "## Requirements * Node.js * Api.ai SDK",
   "main": "soundwave.js",
   "dependencies": {
-    "apiai": "^4.0.3",
     "end-of-stream": "^1.4.0",
     "node-record-lpcm16": "^0.3.0",
     "play-sound": "^1.1.1",
+    "request": "^2.83.0",
     "snowboy": "^1.2.0"
   },
   "devDependencies": {},
