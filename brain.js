@@ -5,10 +5,20 @@ var player = require('play-sound')();
 var request = require('request')
 let { Detector, Models } = require('snowboy');
 var config = require('./config.json');
+var Command = require('./modules/defaultCommands.js');
 
 module.exports = SoundwaveBrain;
 
+function firstEntity(entities, name) {
+    return entities &&
+      entities[name] &&
+      Array.isArray(entities[name]) &&
+      entities[name] &&
+      entities[name][0];
+ }
+
 function SoundwaveBrain(name) {
+    this.lastCommand='';
     this.name = name;
 
     this.models = new Models();
@@ -100,7 +110,7 @@ SoundwaveBrain.prototype.waitForCommands = function () {
         if (hotword === 'Soundwave') {
 
             console.log("As you command!")
-            mainBlock.trasmitCommand(function () { });
+            mainBlock.trasmitCommand(mainBlock.executeCommand);
         }
 
         console.log('hotword', index, hotword);
@@ -113,6 +123,17 @@ SoundwaveBrain.prototype.waitForCommands = function () {
     });
 
     mic.pipe(detector);
+
+}
+
+SoundwaveBrain.prototype.executeCommand = function(err, resp, body) {
+    if(resp.statusCode === 200) {
+       const intent = firstEntity(JSON.parse(body).entities,'intent');
+       console.log(intent);
+       let command = new Command(intent.value); 
+       //this.lastCommand = intent.value;
+       command.execute();
+    }
 
 }
 

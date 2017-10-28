@@ -8,6 +8,7 @@
     "node-record-lpcm16": "^0.3.0",
     "play-sound": "^1.1.1",
     "request": "^2.83.0",
+    "say": "^0.13.1",
     "snowboy": "^1.2.0"
   },
   "devDependencies": {},
