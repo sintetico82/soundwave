@@ -8,6 +8,8 @@ var config = require('./config.json');
 var emitter = require('./emitter.js')
 var Command = require('./modules/defaultCommands.js');
 
+var LightUpMyLove = require('./lightUpMyLove.js');
+var lightUpMyLove = new LightUpMyLove();
 
 module.exports = SoundwaveBrain;
 
@@ -30,9 +32,15 @@ function SoundwaveBrain(name) {
         sensitivity: '0.5',
         hotwords: 'Soundwave'
     });
+
+    process.on('SIGINT', function () {
+        console.log("Exit program");
+        lightUpMyLove.off();
+     });
 }
 
 SoundwaveBrain.prototype.asYouCommand = function () {
+    lightUpMyLove.wait();
     player.play('media/asyoucommand.wav', function (err) {
         if (err) throw err
     });
@@ -59,6 +67,10 @@ SoundwaveBrain.prototype.trasmitCommand = function (callback) {
             if (((new Date()).getTime() - time_silence) > 2500) {
                 record.stop()
                 command_begun = false
+
+                led15.writeSync(0);
+                led14.writeSync(0); // 1 = on, 0 = off :)
+
             }
             else {
                 console.log((new Date()).getTime() + ' minus ' + time_silence)
@@ -110,7 +122,7 @@ SoundwaveBrain.prototype.waitForCommands = function () {
 
     detector.on('hotword', function (index, hotword, buffer) {
         if (hotword === 'Soundwave') {
-
+            lightUpMyLove.on();
             console.log("As you command!")
             emitter.eventBus.sendEvent('as_you_command'); // Send ready for command event
             mainBlock.trasmitCommand(mainBlock.executeCommand);
