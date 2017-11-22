@@ -1,11 +1,14 @@
 'use strict';
 
-var record = require('node-record-lpcm16')
+
+var record = require('node-record-lpcm16');
 var player = require('play-sound')();
-var request = require('request')
+var request = require('request');
 let { Detector, Models } = require('snowboy');
 var config = require('./config.json');
-var emitter = require('./emitter.js')
+var emitter = require('./emitter.js');
+
+const state = require('./modules/async-finite-state-machine');
 var Command = require('./modules/defaultCommands.js');
 
 var LightUpMyLove = require('./lightUpMyLove.js');
@@ -15,15 +18,16 @@ module.exports = SoundwaveBrain;
 
 function firstEntity(entities, name) {
     return entities &&
-      entities[name] &&
-      Array.isArray(entities[name]) &&
-      entities[name] &&
-      entities[name][0];
- }
+        entities[name] &&
+        Array.isArray(entities[name]) &&
+        entities[name] &&
+        entities[name][0];
+}
 
 function SoundwaveBrain(name) {
-    this.lastCommand='';
+    this.lastCommand = '';
     this.name = name;
+    this.fsm = state(); // Finite state machine
 
     this.models = new Models();
 
@@ -36,7 +40,12 @@ function SoundwaveBrain(name) {
     process.on('SIGINT', function () {
         console.log("Exit program");
         lightUpMyLove.off();
-     });
+    });
+
+    this.fsm.addState('LISTENING', this.waitForCommands());
+    this.fsm.addState('RECORDING', this.trasmitCommand(), this.executeCommand);
+
+    this.fsm.setState('LISTENING')
 }
 
 SoundwaveBrain.prototype.asYouCommand = function () {
@@ -47,7 +56,18 @@ SoundwaveBrain.prototype.asYouCommand = function () {
 }
 
 SoundwaveBrain.prototype.trasmitCommand = function (callback) {
+
     var mainBlock = this;
+
+    function logCallback(err, resp, body) {
+        console.log(body)
+        if (callback !== undefined)
+            callback(err, resp, body);
+    }
+
+
+    let enter = async function() {
+
     let detector = new Detector({
         resource: "resources/common.res",
         models: mainBlock.models,
@@ -65,11 +85,11 @@ SoundwaveBrain.prototype.trasmitCommand = function (callback) {
         }
         else if (command_begun && time_silence !== null) {
             if (((new Date()).getTime() - time_silence) > 2500) {
+                
                 record.stop()
+                mainBlock.fsm.setState('LISTENING');
+                
                 command_begun = false
-
-                led15.writeSync(0);
-                led14.writeSync(0); // 1 = on, 0 = off :)
 
             }
             else {
@@ -90,7 +110,7 @@ SoundwaveBrain.prototype.trasmitCommand = function (callback) {
     const mic = record.start({
         recordProgram: 'arecord',
         threshold: 0,
-        verbose: false
+        verbose: true
     });
 
     mic.pipe(detector);
@@ -104,53 +124,60 @@ SoundwaveBrain.prototype.trasmitCommand = function (callback) {
         }
     }, logCallback))
 
-    function logCallback(err, resp, body) {
-        console.log(body)
-        if (callback !== undefined)
-            callback(err, resp, body);
     }
+
+    return Object.freeze({enter});
+   
 }
 
 SoundwaveBrain.prototype.waitForCommands = function () {
     var mainBlock = this;
 
-    let detector = new Detector({
-        resource: "resources/common.res",
-        models: mainBlock.models,
-        audioGain: 2.0
-    });
+    let enter = async function () {
 
-    detector.on('hotword', function (index, hotword, buffer) {
-        if (hotword === 'Soundwave') {
-            lightUpMyLove.on();
-            console.log("As you command!")
-            emitter.eventBus.sendEvent('as_you_command'); // Send ready for command event
-            mainBlock.trasmitCommand(mainBlock.executeCommand);
-        }
+        let detector = new Detector({
+            resource: "resources/common.res",
+            models: mainBlock.models,
+            audioGain: 2.0
+        });
 
-        console.log('hotword', index, hotword);
-    });
+        detector.on('hotword', function (index, hotword, buffer) {
+            if (hotword === 'Soundwave') {
+                lightUpMyLove.on();
+                console.log("As you command!")
+                emitter.eventBus.sendEvent('as_you_command'); // Send ready for command event
+                //mainBlock.trasmitCommand(mainBlock.executeCommand);
 
-    const mic = record.start({
-        recordProgram: 'arecord',
-        threshold: 0,
-        verbose: false
-    });
+                record.stop();
+                mainBlock.fsm.setState('RECORDING');
+            }
 
-    mic.pipe(detector);
+            console.log('hotword', index, hotword);
+        });
+
+        const mic = record.start({
+            recordProgram: 'arecord',
+            threshold: 0,
+            verbose: false
+        });
+
+        mic.pipe(detector);
+    }
+
+    return Object.freeze({ enter });
 
 }
 
-SoundwaveBrain.prototype.executeCommand = function(err, resp, body) {
-    if(resp.statusCode === 200) {
-       const intent = firstEntity(JSON.parse(body).entities,'intent');
-       console.log(intent);
+SoundwaveBrain.prototype.executeCommand = function (err, resp, body) {
+    if (resp.statusCode === 200) {
+        const intent = firstEntity(JSON.parse(body).entities, 'intent');
+        console.log(intent);
 
 
-         let command = new Command(typeof intent !== 'undefined' && intent ? intent.value : "not_understand"); 
-         command.execute();
-     
-      
+        let command = new Command(typeof intent !== 'undefined' && intent ? intent.value : "not_understand");
+        command.execute();
+
+
     }
 
 }
