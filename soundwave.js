@@ -9,4 +9,4 @@ var brain = new SoundwaveBrain("Soundwave 0.1");
 
 console.log("** SOUNDWAVE START **");
 brain.asYouCommand();
-//brain.waitForCommands();
+

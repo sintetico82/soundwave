@@ -23,6 +23,10 @@ Commands.prototype.execute = function() {
     return this[this.name] && this[this.name].apply(this, [].slice.call(arguments, 1));
 }
 
+Commands.prototype.error = function(statusMessage) {
+    say.speak(statusMessage,voice);
+}
+
 Commands.prototype.not_understand = function() {
     say.speak('Non ho capito',voice);
 }

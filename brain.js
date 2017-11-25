@@ -43,7 +43,7 @@ function SoundwaveBrain(name) {
     });
 
     this.fsm.addState('LISTENING', this.waitForCommands());
-    this.fsm.addState('RECORDING', this.trasmitCommand(), this.executeCommand);
+    this.fsm.addState('RECORDING', this.trasmitCommand());
 
     this.fsm.setState('LISTENING')
 }
@@ -55,79 +55,79 @@ SoundwaveBrain.prototype.asYouCommand = function () {
     });
 }
 
-SoundwaveBrain.prototype.trasmitCommand = function (callback) {
+SoundwaveBrain.prototype.trasmitCommand = function () {
 
     var mainBlock = this;
 
     function logCallback(err, resp, body) {
         console.log(body)
-        if (callback !== undefined)
-            callback(err, resp, body);
+        mainBlock.executeCommand(err, resp, body);
     }
 
 
-    let enter = async function() {
+    let enter = async function () {
 
-    let detector = new Detector({
-        resource: "resources/common.res",
-        models: mainBlock.models,
-        audioGain: 2.0
-    });
+        let detector = new Detector({
+            resource: "resources/common.res",
+            models: mainBlock.models,
+            audioGain: 2.0
+        });
 
-    let command_begun = false,
-        time_silence = null,
-        time = new Date();
+        let command_begun = false,
+            time_silence = null,
+            time = new Date();
 
-    detector.on('silence', function () {
-        if (command_begun && time_silence == null) {
-            time_silence = time.getTime()
-            console.log('Silent')
-        }
-        else if (command_begun && time_silence !== null) {
-            if (((new Date()).getTime() - time_silence) > 2500) {
-                
-                record.stop()
-                mainBlock.fsm.setState('LISTENING');
-                
-                command_begun = false
-
+        detector.on('silence', function () {
+            if (command_begun && time_silence == null) {
+                time_silence = time.getTime()
+                console.log('Silent')
             }
-            else {
-                console.log((new Date()).getTime() + ' minus ' + time_silence)
+            else if (command_begun && time_silence !== null) {
+                if (((new Date()).getTime() - time_silence) > 2000) {
+
+                    record.stop()
+                    command_begun = false
+
+                }
+                else {
+                    console.log((new Date()).getTime() + ' minus ' + time_silence)
+                }
             }
-        }
-    })
-    detector.on('sound', function () {
-        if (command_begun) {
-            time_silence = null
-        }
-        else
-            command_begun = true
-        console.log('Noise')
-    })
+        })
+        detector.on('sound', function () {
+            if (command_begun) {
+                time_silence = null
+            }
+            else
+                command_begun = true
+            console.log('Noise')
+        })
 
 
-    const mic = record.start({
-        recordProgram: 'arecord',
-        threshold: 0,
-        verbose: true
-    });
+        const mic = record.start({
+            recordProgram: 'arecord',
+            threshold: 0.5,
+            verbose: false
+        });
 
-    mic.pipe(detector);
-    mic.pipe(request.post({
-        'url': 'https://api.wit.ai/speech?v=20170307',
-        'headers': {
-            'Accept': 'application/vnd.wit.20160202+json',
-            'Authorization': 'Bearer ' + config.WIT_AI,
-            'Content-Type': 'audio/wav',
-            "cache-control": "no-cache",
-        }
-    }, logCallback))
+        mic.pipe(detector);
+        mic.pipe(request.post({
+            'url': 'https://api.wit.ai/speech?v=20170307',
+            'headers': {
+                'Accept': 'application/vnd.wit.20160202+json',
+                'Authorization': 'Bearer ' + config.WIT_AI,
+                'Content-Type': 'audio/wav',
+                "cache-control": "no-cache",
+            }
+        }, logCallback));
+        mic.on('close',function() {
+            mainBlock.fsm.setState('LISTENING');
+        })
 
     }
 
-    return Object.freeze({enter});
-   
+    return Object.freeze({ enter });
+
 }
 
 SoundwaveBrain.prototype.waitForCommands = function () {
@@ -142,17 +142,18 @@ SoundwaveBrain.prototype.waitForCommands = function () {
         });
 
         detector.on('hotword', function (index, hotword, buffer) {
+
+
+
             if (hotword === 'Soundwave') {
                 lightUpMyLove.on();
                 console.log("As you command!")
                 emitter.eventBus.sendEvent('as_you_command'); // Send ready for command event
-                //mainBlock.trasmitCommand(mainBlock.executeCommand);
 
-                record.stop();
-                mainBlock.fsm.setState('RECORDING');
+                record.stop().on('close', function () {
+                    mainBlock.fsm.setState('RECORDING');
+                });
             }
-
-            console.log('hotword', index, hotword);
         });
 
         const mic = record.start({
@@ -169,6 +170,7 @@ SoundwaveBrain.prototype.waitForCommands = function () {
 }
 
 SoundwaveBrain.prototype.executeCommand = function (err, resp, body) {
+
     if (resp.statusCode === 200) {
         const intent = firstEntity(JSON.parse(body).entities, 'intent');
         console.log(intent);
@@ -178,7 +180,12 @@ SoundwaveBrain.prototype.executeCommand = function (err, resp, body) {
         command.execute();
 
 
+    } else {
+        console.log(resp.statusMessage);
+        let command = new Command('error');
+        command.execute(resp.statusCode,resp.statusMessage);
     }
+
 
 }
 

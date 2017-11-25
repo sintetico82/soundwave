@@ -59,3 +59,5 @@ typings/
 
 # Specific for this app
 config.json
+
+package-lock.json
